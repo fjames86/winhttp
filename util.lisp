@@ -49,6 +49,8 @@ Returns values return-data headers status-code.
 	    (add-request-headers hreq (format nil "~A: ~A"
 					      (first h)
 					      (or (second h) ""))))
+	  (when (eq (getf comp :scheme) :https)
+	    (set-ignore-certificates hreq))
 	  (send-request hreq post-data :start post-start :end post-end)
 	  (receive-response hreq)
 	  (let* ((headers (query-headers hreq))

@@ -541,6 +541,24 @@
 ;;   _In_ LPVOID    lpBuffer,
 ;;   _In_ DWORD     dwBufferLength
 ;; );
+(defcfun (%set-option "WinHttpSetOption" :convention :stdcall) :boolean
+  (hreq :pointer)
+  (option :uint32)
+  (buf :pointer)
+  (len :uint32))
+(defun set-ignore-certificates (hreq)
+  (with-foreign-object (buf :uint32)
+    (setf (mem-aref buf :uint32)
+	  (logior #x0100 ;; ignore-unknown-ca 
+		  #x2000 ;; ignore-data-invalid 
+		  #x1000 ;; ignore-cert-cn-invalid 
+		  #x0200 ;; ignore-wrong-usage
+		  0))
+    (%set-option hreq
+		 31 ;; WINHTTP_OPTION_SECURITY_FLAGS
+		 buf
+		 4))
+  nil)
 
 ;; BOOL WINAPI WinHttpQueryAuthSchemes(
 ;;   _In_  HINTERNET hRequest,
