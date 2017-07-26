@@ -22,13 +22,14 @@
      (unwind-protect (progn ,@body)
        (close-handle ,var))))
 		     
-(defun http-request (url &key (method :get) post-data (post-start 0) post-end raw-p)
+(defun http-request (url &key (method :get) post-data (post-start 0) post-end raw-p headers)
   "Send HTTP request to server. 
 URL ::= string in format [http|https://][username:password@]hostname[:port][/url]
 METHOD ::= HTTP verb
 POST-DATA ::= if specified, is an octet vector sent as post data. Uses region bounded 
 by POST-START and POST-DATA.
 RAW-P ::= if true returns octets otherwise return data is parsed as text.
+HEADERS ::= list of (header &optional value)* extra headers to add.
 
 Returns values return-data headers status-code.
 "
@@ -44,6 +45,10 @@ Returns values return-data headers status-code.
 		(pass (getf comp :password)))
 	    (when (and user pass)
 	      (set-credentials hreq user pass)))
+	  (dolist (h headers)
+	    (add-request-headers hreq (format nil "~A: ~A"
+					      (first h)
+					      (or (second h) ""))))
 	  (send-request hreq post-data :start post-start :end post-end)
 	  (receive-response hreq)
 	  (let* ((headers (query-headers hreq))
