@@ -8,7 +8,9 @@
 
 (defpackage #:xmlrpc
   (:use #:cl)
-  (:export #:call))
+  (:export #:call
+	   #:xmlrpc-struct
+	   #:xmlrpc-member))
 
 (in-package #:xmlrpc)
 
@@ -300,7 +302,7 @@
 		  (:|value| (if (stringp seed) seed (car seed)))
 		  (:|struct| (make-xml-rpc-struct :alist seed))
 		  (:|member| (cons (cadr seed) (car seed)))
-		  (:|name| (intern seed :keyword))
+		  (:|name| seed) ;;(intern seed :keyword))
 		  (:|params| (nreverse seed))  ; potential problem with empty params <params>\n</params> parsed as "\n"
 		  (:|param| (car seed))
 		  (:|fault| (make-condition 'xml-rpc-fault
@@ -345,9 +347,12 @@ ARGS ::= list of arguments.
     (multiple-value-bind (resp status-code)
 	(winhttp:http-request url
 			      :method :post
-			      :post-data (babel:string-to-octets encoded))
+			      :post-data encoded)
       (unless (= status-code 200) (error "HTTP Status ~A" status-code))
       (with-input-from-string (s resp)
 	(decode-xml-rpc s)))))
 
-			  
+(defun xmlrpc-struct (&rest args)
+  (apply #'xml-rpc-struct args))
+(defun xmlrpc-member (struct &rest keys)
+  (apply #'xml-rpc-struct-member struct keys))

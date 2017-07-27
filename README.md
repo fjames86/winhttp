@@ -23,6 +23,15 @@ POST data, optional extra headers, basic authentication credentials.
 For advanced uses, make use of the `with-http`, `with-connect`, `with-request` macros and
 other functions. See the relevant MSDN pages for usage of the underlying APIs.
 
+## Examples
+
+I've included an example XML-RPC client that I have found useful. It is largely taken from the 
+S-XML-RPC project, replacing the http client with winhttp.
+
+```
+(xmlrpc:call "https://username:password@hostname:port/RPC2" "xmlrpc_method" arg1 arg2 ...)
+```
+
 ## License
 
 Released under the terms of the MIT license.
