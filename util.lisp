@@ -22,7 +22,14 @@
      (unwind-protect (progn ,@body)
        (close-handle ,var))))
 		     
-(defun http-request (url &key (method :get) post-data (post-start 0) post-end raw-p headers)
+(defun get-content-length (headers)
+  (dolist (h headers)
+    (destructuring-bind (hname hval) h
+      (when (string-equal hname "Content-Length")
+	(return-from get-content-length (parse-integer hval)))))
+  nil)
+
+(defun http-request (url &key (method :get) post-data (post-start 0) post-end raw-p headers timeout)
   "Send HTTP request to server. 
 URL ::= string in format [http|https://][username:password@]hostname[:port][/url]
 METHOD ::= HTTP verb
@@ -51,7 +58,12 @@ Returns values return-data headers status-code.
 					      (or (second h) ""))))
 	  (when (eq (getf comp :scheme) :https)
 	    (set-ignore-certificates hreq))
-	  (send-request hreq post-data :start post-start :end post-end)
+	  (when timeout (set-timeouts hreq :connect timeout :recv timeout))
+	  (send-request hreq 
+			(if (stringp post-data)
+			    (babel:string-to-octets post-data)
+			    post-data)
+			:start post-start :end post-end)
 	  (receive-response hreq)
 	  (let* ((headers (query-headers hreq))
 		 (status (query-status-code hreq))
@@ -79,4 +91,5 @@ Returns values return-data headers status-code.
 							  :end n
 							  :errorp nil))))))))
 	     status
-	     headers)))))))
+	     headers
+	     (get-content-length headers))))))))

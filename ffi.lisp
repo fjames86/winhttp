@@ -19,8 +19,64 @@
   (size :uint32)
   (args :pointer))
 
+(defparameter *winhttp-errors* 
+  '((12001 "Out of Handles")
+    (12002 "Timeout")
+    (12004 "Internal Error")
+    (12005 "Invalid URL")
+    (12006 "Unrecognised scheme")
+    (12007 "Name not resolved")
+    (12009 "Invalid Option")
+    (12011 "Option not settable")
+    (12012 "Shutdown")
+    (12015 "Login failure")
+    (12017 "Operation cancelled")
+    (12018 "Incorrect handle type")
+    (12019 "Incorrect handle state")
+    (12029 "Cannot connect")
+    (12030 "Connection error")
+    (12032 "Resend request")
+    (12044 "Client auth cert needed")
+    (12100 "Cannot call before open")
+    (12101 "Cannot call before send")
+    (12102 "Cannot call after send")
+    (12103 "Cannot call after open")
+    (12150 "Header not found")
+    (12152 "Invalid server response")
+    (12153 "Invalid header")
+    (12154 "Invalid query request")
+    (12155 "Header already exists")
+    (12156 "Redirect failed")
+    (12178 "Auto proxy service error")
+    (12166 "Bad auto proxy script")
+    (12167 "Unable to download script")
+    (12176 "Unhandled script type")
+    (12177 "Script execution error")
+    (12172 "Not initialized")
+    (12175 "Secure failure")
+    (12037 "Certificate date invalid")
+    (12038 "Certificate CN invalid")
+    (12045 "Certificate Invalid CA")
+    (12057 "Certificate Rev failed")
+    (12157 "Secure channel error")
+    (12169 "Invalid certificate")
+    (12170 "Certificate revoked")
+    (12179 "Certificate wrong usage")
+    (12180 "Autodecection failed")
+    (12181 "Header count execeeded")
+    (12182 "Header size overflow")
+    (12183 "Chunked encoding header size overflow")
+    (12184 "Response drain overflow")
+    (12185 "Client certificate no private key")
+    (12186 "Client certificate no access private key")))
+(defun winhttp-error-string (code)
+  (cadr (assoc code *winhttp-errors*)))
+
 (defun format-message (code)
   "Use FormatMessage to convert the error code into a system-defined string."
+  (let ((msg (winhttp-error-string code)))
+    (when msg (return-from format-message msg)))
+
   (with-foreign-object (buffer :char 1024)
     (let ((n (%format-message #x00001000
 			      (null-pointer)
@@ -566,3 +622,25 @@
 ;;   _Out_ LPDWORD   lpdwFirstScheme,
 ;;   _Out_ LPDWORD   pdwAuthTarget
 ;; );
+
+;; BOOL WINAPI WinHttpSetTimeouts(
+;;   _In_ HINTERNET hInternet,
+;;   _In_ int       dwResolveTimeout,
+;;   _In_ int       dwConnectTimeout,
+;;   _In_ int       dwSendTimeout,
+;;   _In_ int       dwReceiveTimeout
+;; );
+(defcfun (%set-timeouts "WinHttpSetTimeouts" :convention :stdcall) :boolean
+  (hreq :pointer)
+  (resolve :int32)
+  (connect :int32)
+  (send :int32)
+  (recv :int32))
+(defun set-timeouts (hreq &key resolve connect send recv)
+  (let ((res (%set-timeouts hreq 
+			    (or resolve 0)
+			    (or connect 0)
+			    (or send 0)
+			    (or recv 0))))
+    (unless res (get-last-error))
+    nil))

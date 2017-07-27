@@ -2,6 +2,9 @@
 ;;;; the Lisp Lesser General Public License (LLGPL)
 ;;;;
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (ql:quickload "cl-base64")
+  (ql:quickload "s-xml"))
 
 (defpackage #:xmlrpc
   (:use #:cl)
