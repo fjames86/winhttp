@@ -347,7 +347,9 @@ ARGS ::= list of arguments.
     (multiple-value-bind (resp status-code)
 	(winhttp:http-request url
 			      :method :post
-			      :post-data encoded)
+			      :post-data encoded
+			      :timeout 5000
+			      :ignore-certificates-p t)
       (unless (= status-code 200) (error "HTTP Status ~A" status-code))
       (with-input-from-string (s resp)
 	(decode-xml-rpc s)))))

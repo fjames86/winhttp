@@ -29,16 +29,20 @@
 	(return-from get-content-length (parse-integer hval)))))
   nil)
 
-(defun http-request (url &key (method :get) post-data (post-start 0) post-end raw-p headers timeout)
+(defun http-request (url &key (method :get) 
+			   post-data (post-start 0) post-end 
+			   rawp headers timeout ignore-certificates-p)
   "Send HTTP request to server. 
 URL ::= string in format [http|https://][username:password@]hostname[:port][/url]
 METHOD ::= HTTP verb
 POST-DATA ::= if specified, is an octet vector sent as post data. Uses region bounded 
 by POST-START and POST-DATA.
-RAW-P ::= if true returns octets otherwise return data is parsed as text.
+RAWP ::= if true returns octets otherwise return data is parsed as text.
 HEADERS ::= list of (header &optional value)* extra headers to add.
+TIMEOUT ::= milliseconds to wait for connection and receive.
+IGNORE-CERTIFICATES-P ::= if true will set option flags to ignore certificate errors.
 
-Returns values return-data headers status-code.
+Returns values return-data status-code headers content-length.
 "
 
   (let ((comp (crack-url url)))
@@ -56,7 +60,8 @@ Returns values return-data headers status-code.
 	    (add-request-headers hreq (format nil "~A: ~A"
 					      (first h)
 					      (or (second h) ""))))
-	  (when (eq (getf comp :scheme) :https)
+	  (when (and (eq (getf comp :scheme) :https)
+		     ignore-certificates-p)
 	    (set-ignore-certificates hreq))
 	  (when timeout (set-timeouts hreq :connect timeout :recv timeout))
 	  (send-request hreq 
@@ -71,7 +76,7 @@ Returns values return-data headers status-code.
 				   :element-type '(unsigned-byte 8))))
 	    (values
 	     (cond
-	       (raw-p
+	       (rawp
 		(flexi-streams:with-output-to-sequence (s)
 		  (do ((done nil))
 		      (done)
