@@ -248,7 +248,7 @@
   (proxy :pointer)
   (bypass :pointer)
   (flags :uint32))
-(defun http-open (&key user-agent)
+(defun http-open (&optional user-agent)
   (with-wide-string (u (or user-agent "winhttp"))
     (let ((h (%http-open u
 			 +access-no-proxy+
