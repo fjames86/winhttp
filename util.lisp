@@ -4,17 +4,20 @@
 
 (in-package #:winhttp)
 
-(defmacro with-http ((var) &body body)
-  `(let ((,var (http-open)))
+(defmacro with-http ((var &optional user-agent) &body body)
+  "Evaluate body with VAR bound to a session handle."
+  `(let ((,var (http-open ,user-agent)))
      (unwind-protect (progn ,@body)
        (close-handle ,var))))
 
 (defmacro with-connect ((var http hostname port) &body body)
+  "Evaluate body with VAR bound to a connection handle."
   `(let ((,var (http-connect ,http ,hostname ,port)))
      (unwind-protect (progn ,@body)
        (close-handle ,var))))
 
 (defmacro with-request ((var hconn &key verb url https-p) &body body)
+  "Evaludate body with VAR bound to a request handle."
   `(let ((,var (http-open-request ,hconn
 				  :verb ,verb
 				  :url ,url
@@ -22,11 +25,12 @@
      (unwind-protect (progn ,@body)
        (close-handle ,var))))
 		     
-(defun get-content-length (headers)
+(defun query-content-length (headers)
+  "Returns content length as specified in header."
   (dolist (h headers)
     (destructuring-bind (hname hval) h
       (when (string-equal hname "Content-Length")
-	(return-from get-content-length (parse-integer hval)))))
+	(return-from query-content-length (parse-integer hval)))))
   nil)
 
 (defparameter *status-cb-types*
@@ -90,8 +94,14 @@ RAWP ::= if true returns octets otherwise return data is parsed as text.
 HEADERS ::= list of (header &optional value)* extra headers to add.
 TIMEOUT ::= milliseconds to wait for connection and receive.
 IGNORE-CERTIFICATES-P ::= if true will set option flags to ignore certificate errors.
+<<<<<<< HEAD
 STATUSCB ::= if non-nil, is a symbol naming a callback defined using define-status-callback.
 This will be invoked to inform various status messages. 
+=======
+RECV-BUF ::= if provided, is an octet vector that receives the reply body. 
+If not supplied a buffer is allocated. 
+
+>>>>>>> f59464e41708630847a9a037c34eb1c27801a8de
 Returns values return-data status-code headers content-length.
 "
 
@@ -132,29 +142,19 @@ Returns values return-data status-code headers content-length.
 	  (receive-response hreq)
 	  (let* ((headers (query-headers hreq))
 		 (status (query-status-code hreq))
-		 (resp (make-array (* 64 1024)
-				   :element-type '(unsigned-byte 8))))
+		 (len (query-content-length headers))
+		 (resp (or recv-buf
+			   (make-array len :element-type '(unsigned-byte 8)))))
+	    (do ((done nil)
+		 (offset 0))
+		(done)
+	      (let ((n (read-data hreq resp :start offset)))
+		(when (zerop n)
+		  (setf done t))))
 	    (values
-	     (cond
-	       (rawp
-		(flexi-streams:with-output-to-sequence (s)
-		  (do ((done nil))
-		      (done)
-		    (let ((n (read-data hreq resp)))
-		      (if (zerop n)
-			  (setf done t)
-			  (write-sequence resp s :end n))))))
-	       (t
-		(with-output-to-string (s)
-		  (do ((done nil))
-		      (done)
-		    (let ((n (read-data hreq resp)))
-		      (if (zerop n)
-			  (setf done t)
-			  (format s "~A"
-				  (babel:octets-to-string resp
-							  :end n
-							  :errorp nil))))))))
+	     (if rawp
+		 resp
+		 (babel:octets-to-string resp :end len))
 	     status
 	     headers
-	     (get-content-length headers))))))))
+	     len))))))) 
