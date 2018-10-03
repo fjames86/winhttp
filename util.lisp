@@ -82,7 +82,7 @@ INFOLEN ::= length of info buffer
          ,@body))))
 
 (defun http-request (url &key (method :get) 
-			   post-data (post-start 0) post-end 
+                           post-data (post-start 0) post-end 
                            rawp headers timeout ignore-certificates-p
                            statuscb recv-buf)
   "Send HTTP request to server. 
@@ -105,52 +105,56 @@ Returns values return-data status-code headers content-length.
     (with-http (hsession)
       (when (eq (getf comp :scheme) :https)
         (set-secure-protocols hsession :tls1 t :tls1-1 t :tls1-2 t))
+      
       (with-connect (hconn hsession (getf comp :hostname) (getf comp :port))
-	(with-request (hreq hconn
-			    :verb method
-			    :url (getf comp :url)
-			    :https-p (eq (getf comp :scheme) :https))
-      
-      (when statuscb
-        (set-status-callback hreq (get-callback statuscb)))
-      
-	  (let ((user (getf comp :username))
-		(pass (getf comp :password)))
-	    (when (and user pass)
-	      (set-credentials hreq user pass)))
-      
-	  (dolist (h headers)
-	    (add-request-headers hreq (format nil "~A: ~A"
-					      (first h)
-					      (or (second h) ""))))
-      
-	  (when (eq (getf comp :scheme) :https)
-        (when ignore-certificates-p
-          (set-ignore-certificates hreq)))
-      
-	  (when timeout (set-timeouts hreq :connect timeout :recv timeout))
-      
-	  (send-request hreq 
-			(if (stringp post-data)
-			    (babel:string-to-octets post-data)
-			    post-data)
-			:start post-start :end post-end)
-	  (receive-response hreq)
-	  (let* ((headers (query-headers hreq))
-		 (status (query-status-code hreq))
-		 (len (query-content-length headers))
-		 (resp (or recv-buf
-			   (make-array len :element-type '(unsigned-byte 8)))))
-	    (do ((done nil)
-		 (offset 0))
-		(done)
-	      (let ((n (read-data hreq resp :start offset)))
-		(when (zerop n)
-		  (setf done t))))
-	    (values
-	     (if rawp
-		 resp
-		 (babel:octets-to-string resp :end len))
-	     status
-	     headers
-	     len))))))) 
+        (with-request (hreq hconn
+                            :verb method
+                            :url (getf comp :url)
+                            :https-p (eq (getf comp :scheme) :https))
+          
+          (when statuscb
+            (set-status-callback hreq (get-callback statuscb)))
+          
+          (let ((user (getf comp :username))
+                (pass (getf comp :password)))
+            (when (and user pass)
+              (set-credentials hreq user pass)))
+          
+          (dolist (h headers)
+            (add-request-headers hreq (format nil "~A: ~A"
+                                              (first h)
+                                              (or (second h) ""))))
+          
+          (when (eq (getf comp :scheme) :https)
+            (when ignore-certificates-p
+              (set-ignore-certificates hreq)))
+          
+          (when timeout (set-timeouts hreq :connect timeout :recv timeout))
+          
+          (send-request hreq 
+                        (if (stringp post-data)
+                            (babel:string-to-octets post-data)
+                            post-data)
+                        :start post-start :end post-end)
+          (receive-response hreq)
+          (let* ((headers (query-headers hreq))
+                 (status (query-status-code hreq))
+                 (len (if (integerp recv-buf) recv-buf (* 32 1024)))
+                 (count 0)
+                 (resp (if (vectorp recv-buf)
+                           recv-buf
+                           (make-array len :element-type '(unsigned-byte 8)))))
+            (when (> len 0)
+              (do ((done nil))
+                  (done)
+                (let ((n (read-data hreq resp :start count)))
+                  (when (zerop n)
+                    (setf done t))
+                  (incf count n))))
+            (values
+             (if rawp
+                 resp
+                 (babel:octets-to-string resp :end count))
+             status
+             headers
+             count))))))) 
