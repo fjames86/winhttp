@@ -84,7 +84,7 @@ INFOLEN ::= length of info buffer
 (defun http-request (url &key (method :get) 
 			   post-data (post-start 0) post-end 
                            rawp headers timeout ignore-certificates-p
-                           statuscb)
+                           statuscb recv-buf)
   "Send HTTP request to server. 
 URL ::= string in format [http|https://][username:password@]hostname[:port][/url]
 METHOD ::= HTTP verb
@@ -94,14 +94,10 @@ RAWP ::= if true returns octets otherwise return data is parsed as text.
 HEADERS ::= list of (header &optional value)* extra headers to add.
 TIMEOUT ::= milliseconds to wait for connection and receive.
 IGNORE-CERTIFICATES-P ::= if true will set option flags to ignore certificate errors.
-<<<<<<< HEAD
 STATUSCB ::= if non-nil, is a symbol naming a callback defined using define-status-callback.
 This will be invoked to inform various status messages. 
-=======
 RECV-BUF ::= if provided, is an octet vector that receives the reply body. 
 If not supplied a buffer is allocated. 
-
->>>>>>> f59464e41708630847a9a037c34eb1c27801a8de
 Returns values return-data status-code headers content-length.
 "
 
