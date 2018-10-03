@@ -602,6 +602,7 @@
   (option :uint32)
   (buf :pointer)
   (len :uint32))
+
 (defun set-ignore-certificates (hreq)
   (with-foreign-object (buf :uint32)
     (setf (mem-aref buf :uint32)
@@ -609,12 +610,36 @@
 		  #x2000 ;; ignore-data-invalid 
 		  #x1000 ;; ignore-cert-cn-invalid 
 		  #x0200 ;; ignore-wrong-usage
+;;          #x00010000 ;; SECURITY_FLAG_IGNORE_WEAK_SIGNATURE 
+;;          #x10000000 ;; SECURITY_FLAG_STRENGTH_WEAK
+;;          #x20000000 ;; SECURITY_FLAG_STRENGTH_STRONG
+;;          #x40000000 ;; SECURITY_FLAG_STRENTH_MEDIUM 
 		  0))
-    (%set-option hreq
-		 31 ;; WINHTTP_OPTION_SECURITY_FLAGS
-		 buf
-		 4))
+    (let ((ret (%set-option hreq
+                            31 ;; WINHTTP_OPTION_SECURITY_FLAGS
+                            buf
+                            4)))
+      (unless ret
+        (get-last-error))))
   nil)
+
+
+(defun set-secure-protocols (hinternet &key ssl2 ssl3 tls1 tls1-1 tls1-2)
+  "Set the TLS protocols that can be used for a session.
+HINTERNET ::= session handle."
+  (let ((prots
+         (logior (if ssl2 #x0008 0)
+                 (if ssl3 #x0020 0)
+                 (if tls1 #x0080 0)
+                 (if tls1-1 #x0200 0)
+                 (if tls1-2 #x0800 0))))
+    (with-foreign-object (buf :uint32)
+      (setf (mem-aref buf :uint32) prots)
+      (let ((ret (%set-option hinternet
+                              84 ;; WINHTTP_OPTION_SECURE_PROTOCOLS 
+                              buf 4)))
+        (unless ret
+          (get-last-error))))))
 
 ;; BOOL WINAPI WinHttpQueryAuthSchemes(
 ;;   _In_  HINTERNET hRequest,
@@ -644,3 +669,24 @@
 			    (or recv 0))))
     (unless res (get-last-error))
     nil))
+
+;; WINHTTPAPI WINHTTP_STATUS_CALLBACK WinHttpSetStatusCallback(
+;;   IN HINTERNET               hInternet,
+;;   IN WINHTTP_STATUS_CALLBACK lpfnInternetCallback,
+;;   IN DWORD                   dwNotificationFlags,
+;;   IN DWORD_PTR               dwReserved
+;; );
+(defcfun (%set-status-callback "WinHttpSetStatusCallback" :convention :stdcall)
+    :pointer
+  (hinternet :pointer)
+  (callback :pointer)
+  (flags :uint32)
+  (reserved :pointer))
+
+(defun set-status-callback (hinternet callback)
+  "Set a callback to receive status updates. This can be used to track
+progress of an HTTP request. 
+HINTERNET ::= request handle
+CALLBACK ::= foreign callback address.
+"
+  (%set-status-callback hinternet callback #xffffffff (null-pointer)))

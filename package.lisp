@@ -17,6 +17,8 @@
 	   #:receive-response
 	   #:send-request
 	   #:query-data-available
-	   #:set-credentials))
+	   #:set-credentials
+       #:define-status-callback
+       #:set-status-callback))
    
 

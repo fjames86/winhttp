@@ -29,9 +29,58 @@
 	(return-from get-content-length (parse-integer hval)))))
   nil)
 
+(defparameter *status-cb-types*
+  '((:RESOLVING-NAME          #x00000001)
+    (:NAME-RESOLVED           #x00000002)
+    (:CONNECTING-TO-SERVER    #x00000004)
+    (:CONNECTED-TO-SERVER     #x00000008)
+    (:SENDING-REQUEST         #x00000010)
+    (:REQUEST-SENT            #x00000020)
+    (:RECEIVING-RESPONSE      #x00000040)
+    (:RESPONSE-RECEIVED       #x00000080)
+    (:CLOSING-CONNECTION      #x00000100)
+    (:CONNECTION-CLOSED       #x00000200)
+    (:HANDLE-CREATED          #x00000400)
+    (:HANDLE-CLOSING          #x00000800)
+    (:DETECTING-PROXY         #x00001000)
+    (:REDIRECT                #x00004000)
+    (:INTERMEDIATE-RESPONSE   #x00008000)
+    (:SECURE-FAILURE          #x00010000)
+    (:HEADERS-AVAILABLE       #x00020000)
+    (:DATA-AVAILABLE          #x00040000)
+    (:READ-COMPLETE           #x00080000)
+    (:WRITE-COMPLETE          #x00100000)
+    (:REQUEST-ERROR           #x00200000)
+    (:SENDREQUEST-COMPLETE    #x00400000)
+    (:GETPROXYFORURL-COMPLETE #x01000000)
+    (:CLOSE-COMPLETE          #x02000000)
+    (:SHUTDOWN-COMPLETE       #x04000000)))
+
+(defmacro define-status-callback (name (hinternet context status infop infolen) &body body)
+  "Define a foreign callback function which can be used to receive http request status updates.
+See MSDN for information on WinHttpSetStatusCallback function. Use SET-STATUS-CALLBACK to register 
+this with a request handle.
+
+HINTERNET ::= handle 
+CONTEXT ::= pointer to DWORD context 
+STATUS ::= symbol naming status update type 
+INFOP ::= pointer to info buffer
+INFOLEN ::= length of info buffer
+"
+  (let ((gstatus (gensym)))
+    `(defcallback ,name :void
+         ((,hinternet :pointer)
+          (,context :pointer)
+          (,gstatus :uint32)
+          (,infop :pointer)
+          (,infolen :uint32))
+       (let ((,status (first (find ,gstatus *status-cb-types* :key #'second))))
+         ,@body))))
+
 (defun http-request (url &key (method :get) 
 			   post-data (post-start 0) post-end 
-			   rawp headers timeout ignore-certificates-p)
+                           rawp headers timeout ignore-certificates-p
+                           statuscb)
   "Send HTTP request to server. 
 URL ::= string in format [http|https://][username:password@]hostname[:port][/url]
 METHOD ::= HTTP verb
@@ -41,29 +90,40 @@ RAWP ::= if true returns octets otherwise return data is parsed as text.
 HEADERS ::= list of (header &optional value)* extra headers to add.
 TIMEOUT ::= milliseconds to wait for connection and receive.
 IGNORE-CERTIFICATES-P ::= if true will set option flags to ignore certificate errors.
-
+STATUSCB ::= if non-nil, is a symbol naming a callback defined using define-status-callback.
+This will be invoked to inform various status messages. 
 Returns values return-data status-code headers content-length.
 "
 
   (let ((comp (crack-url url)))
     (with-http (hsession)
+      (when (eq (getf comp :scheme) :https)
+        (set-secure-protocols hsession :tls1 t :tls1-1 t :tls1-2 t))
       (with-connect (hconn hsession (getf comp :hostname) (getf comp :port))
 	(with-request (hreq hconn
 			    :verb method
 			    :url (getf comp :url)
 			    :https-p (eq (getf comp :scheme) :https))
+      
+      (when statuscb
+        (set-status-callback hreq (get-callback statuscb)))
+      
 	  (let ((user (getf comp :username))
 		(pass (getf comp :password)))
 	    (when (and user pass)
 	      (set-credentials hreq user pass)))
+      
 	  (dolist (h headers)
 	    (add-request-headers hreq (format nil "~A: ~A"
 					      (first h)
 					      (or (second h) ""))))
-	  (when (and (eq (getf comp :scheme) :https)
-		     ignore-certificates-p)
-	    (set-ignore-certificates hreq))
+      
+	  (when (eq (getf comp :scheme) :https)
+        (when ignore-certificates-p
+          (set-ignore-certificates hreq)))
+      
 	  (when timeout (set-timeouts hreq :connect timeout :recv timeout))
+      
 	  (send-request hreq 
 			(if (stringp post-data)
 			    (babel:string-to-octets post-data)
