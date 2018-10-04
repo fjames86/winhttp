@@ -143,10 +143,19 @@ Returns values return-data status-code headers content-length.
                  (count 0)
                  (resp (if (vectorp recv-buf)
                            recv-buf
-                           (make-array len :element-type '(unsigned-byte 8)))))
+                           (make-array len :element-type '(unsigned-byte 8) :adjustable t))))
             (when (> len 0)
               (do ((done nil))
                   (done)
+
+                ;; if we have allocated a response buffer, check it is large enough
+                ;; if there isn't enough space, use adjust-array to increase the buffer
+                (let ((nda (query-data-available hreq)))
+                  (when (and (not (vectorp recv-buf))
+                             (> nda (- (length resp) count)))
+                    (adjust-array resp (+ count nda))))
+
+                ;; receive response data 
                 (let ((n (read-data hreq resp :start count)))
                   (when (zerop n)
                     (setf done t))
