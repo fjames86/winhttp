@@ -355,7 +355,7 @@ ARGS ::= list of arguments.
         (let ((ret (decode-xml-rpc s)))
           (if (typep ret 'xml-rpc-fault)
               (error ret)
-              ret))))))
+              (car ret)))))))
 
 (defun xmlrpc-struct (&rest args)
   (apply #'xml-rpc-struct args))
