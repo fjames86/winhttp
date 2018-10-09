@@ -352,7 +352,10 @@ ARGS ::= list of arguments.
 			      :ignore-certificates-p t)
       (unless (= status-code 200) (error "HTTP Status ~A" status-code))
       (with-input-from-string (s resp)
-	(decode-xml-rpc s)))))
+        (let ((ret (decode-xml-rpc s)))
+          (if (typep ret 'xml-rpc-fault)
+              (error ret)
+              ret))))))
 
 (defun xmlrpc-struct (&rest args)
   (apply #'xml-rpc-struct args))
