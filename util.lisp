@@ -81,6 +81,18 @@ INFOLEN ::= length of info buffer
        (let ((,status (first (find ,gstatus *status-cb-types* :key #'second))))
          ,@body))))
 
+(defun get-content-charset (headers)
+  "Try and get the content charset from the headers. We need this otherwise 
+babel may not be able to decode the text."
+  (let ((str (second (find "Content-Type" headers :key #'car :test #'string-equal))))
+    (when str
+      (let ((pos (search "charset=" str :test #'string-equal)))
+	(when pos
+	  (incf pos 8)
+	  (let ((epos (position #\; str :start pos :test #'char=)))
+	    (intern (string-trim " " (subseq str pos epos))
+		    :keyword)))))))
+		   
 (defun http-request (url &key (method :get) 
                            post-data (post-start 0) post-end 
                            rawp headers timeout ignore-certificates-p
@@ -89,7 +101,7 @@ INFOLEN ::= length of info buffer
 URL ::= string in format [http|https://][username:password@]hostname[:port][/url]
 METHOD ::= HTTP verb
 POST-DATA ::= if specified, is an octet vector sent as post data. Uses region bounded 
-by POST-START and POST-DATA.
+by POST-START and POST-END.
 RAWP ::= if true returns octets otherwise return data is parsed as text.
 HEADERS ::= list of (header &optional value)* extra headers to add.
 TIMEOUT ::= milliseconds to wait for connection and receive.
@@ -163,7 +175,8 @@ Returns values return-data status-code headers content-length.
             (values
              (if rawp
                  resp
-                 (babel:octets-to-string resp :end count))
+                 (let ((encoding (or (get-content-charset headers) :utf-8)))
+		   (babel:octets-to-string resp :end count :encoding encoding)))
              status
              headers
              count))))))) 

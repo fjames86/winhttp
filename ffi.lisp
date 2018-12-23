@@ -269,6 +269,7 @@
 
 (defconstant +addreq-add+ #x20000000)
 (defconstant +addreq-replace+ #x80000000)
+
 ;; BOOL WINAPI WinHttpAddRequestHeaders(
 ;;   _In_ HINTERNET hRequest,
 ;;   _In_ LPCWSTR   pwszHeaders,
@@ -433,12 +434,6 @@
   (len :pointer)
   (idx :pointer))
 
-(defun hd (buf count)
-  (dotimes (i count)
-    (when (and (> i 0) (zerop (mod i 16)))
-      (terpri))
-    (format t "~2,'0X " (mem-aref buf :uint8 i))))
-	      
 (defun query-headers (hreq)
   (with-foreign-objects ((buf :uint8 (* 1024 32))
 			 (len :uint32))

@@ -11,6 +11,6 @@
   ((:file "package")
    (:file "ffi")
    (:file "util"))
-  :depends-on (:cffi :flexi-streams))
+  :depends-on (:cffi))
 
 
