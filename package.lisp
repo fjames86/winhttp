@@ -1,3 +1,5 @@
+;;;; Copyright (c) Frank James 2017 <frank.a.james@gmail.com>
+;;;; This code is licensed under the MIT license.
 
 (defpackage #:winhttp
   (:use #:cl #:cffi)
@@ -18,7 +20,7 @@
 	   #:send-request
 	   #:query-data-available
 	   #:set-credentials
-       #:define-status-callback
-       #:set-status-callback))
-   
+	   #:define-status-callback
+	   #:set-status-callback))
+
 
