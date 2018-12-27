@@ -580,8 +580,8 @@
 				     (:passport 4)
 				     (:digest 8)
 				     (:negotiate 16))
-				   ustr
-				   pstr
+				   (if (eq scheme :negotiate) (null-pointer) ustr)
+				   (if (eq scheme :negotiate) (null-pointer) pstr)
 				   (null-pointer))))
 	(unless res (get-last-error))
 	nil))))

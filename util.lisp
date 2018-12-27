@@ -197,7 +197,7 @@ IGNORE-CERTIFICATES-P ::= if true will set option flags to ignore certificate er
 STATUSCB ::= if non-nil, is a symbol naming a callback defined using define-status-callback.
 This will be invoked to inform various status messages. 
 RECV-BUF ::= if provided, is an octet vector that receives the reply body. 
-If not supplied a buffer is allocated. 
+If not supplied a buffer is allocated. Uses region bounded by RECV-START and RECV-END.
 Returns values return-data status-code headers content-length.
 "
 
