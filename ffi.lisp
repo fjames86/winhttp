@@ -143,7 +143,7 @@
   (size :uint32)
   (scheme :pointer)
   (scheme-len :uint32)
-  (nscheme :int32) ;; 1==http 2==https
+  (nscheme :int32) ;; 1==http 2==https 3==ftp?
   (hostname :pointer)
   (hostname-len :uint32)
   (port :uint16)
@@ -214,7 +214,8 @@
 	  (list :scheme (let ((s (foreign-slot-value comp '(:struct url-components) 'nscheme)))
 			  (ecase s
 			    (1 :http)
-			    (2 :https)))
+			    (2 :https)
+			    (3 :ftp)))
 		:url (foreign-string-to-lisp url :encoding :ucs-2le)
 		:hostname (foreign-string-to-lisp hostname :encoding :ucs-2le)
 		:username (let ((u (foreign-string-to-lisp user :encoding :ucs-2le)))
@@ -229,6 +230,7 @@
 			     (cond
 			       ((= s 1) 80)
 			       ((= s 2) 443)
+			       ((= s 3) 21)
 			       (t 80))))
 			  (t p)))))))))
 
