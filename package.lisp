@@ -21,6 +21,17 @@
 	   #:query-data-available
 	   #:set-credentials
 	   #:define-status-callback
-	   #:set-status-callback))
+	   #:set-status-callback
+
+	   ;; websocket
+	   #:websocket-close
+	   #:websocket-complete-upgrade
+	   #:websocket-receive
+	   #:websocket-send
+	   #:websocket-shutdown
+	   #:upgrade-to-websocket
+	   #:with-websocket
+	   #:websocket-query-close-status
+	   ))
 
 

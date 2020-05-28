@@ -687,3 +687,217 @@ HINTERNET ::= request handle
 CALLBACK ::= foreign callback address.
 "
   (%set-status-callback hinternet callback #xffffffff (null-pointer)))
+
+
+;; WINHTTPAPI DWORD WinHttpWebSocketClose(
+;;   HINTERNET hWebSocket,
+;;   USHORT    usStatus,
+;;   PVOID     pvReason,
+;;   DWORD     dwReasonLength
+;; );
+(defcfun (%websocket-close "WinHttpWebSocketClose" :convention :stdcall) :uint32
+  (hwebsocket :pointer)
+  (status :uint16)
+  (reason :pointer)
+  (creason :uint32))
+(defun websocket-close (hwebsocket &optional status)
+  "Close the websocket handle" 
+  (%websocket-close hwebsocket
+		    (or status 0)
+		    (null-pointer)
+		    0))
+
+;; typedef enum _WINHTTP_WEB_SOCKET_CLOSE_STATUS {
+;;   WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_ENDPOINT_TERMINATED_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_PROTOCOL_ERROR_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_INVALID_DATA_TYPE_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_EMPTY_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_ABORTED_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_INVALID_PAYLOAD_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_POLICY_VIOLATION_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_MESSAGE_TOO_BIG_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_UNSUPPORTED_EXTENSIONS_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_SERVER_ERROR_CLOSE_STATUS,
+;;   WINHTTP_WEB_SOCKET_SECURE_HANDSHAKE_ERROR_CLOSE_STATUS
+;; } WINHTTP_WEB_SOCKET_CLOSE_STATUS;
+
+
+;; WINHTTPAPI HINTERNET WinHttpWebSocketCompleteUpgrade(
+;;   HINTERNET hRequest,
+;;   DWORD_PTR pContext
+;; );
+(defcfun (%websocket-complete-upgrade "WinHttpWebSocketCompleteUpgrade" :convention :stdcall) :pointer
+  (hreq :pointer)
+  (pcxt :pointer))
+(defun websocket-complete-upgrade (hrequest)
+  "Complete the upgrade to the websocket. returns the websocket handle. The request handle can now be closed."
+  (let ((res (%websocket-complete-upgrade hrequest (null-pointer))))
+    (if (null-pointer-p res)
+	(get-last-error)
+	res)))
+
+;; WINHTTPAPI DWORD WinHttpWebSocketQueryCloseStatus(
+;;   HINTERNET hWebSocket,
+;;   USHORT    *pusStatus,
+;;   PVOID     pvReason,
+;;   DWORD     dwReasonLength,
+;;   DWORD     *pdwReasonLengthConsumed
+;; );
+(defcfun (%websocket-query-close-status "WinHttpWebSocketQueryCloseStatus" :convention :stdcall) :uint32
+  (hwebsocket :pointer)
+  (status :pointer)
+  (reason :pointer)
+  (creason :uint32)
+  (reasonlength :pointer))
+(defun websocket-query-close-status (hwebsocket)
+  "Get the websocket close status." 
+  (with-foreign-objects ((status :uint16)
+			 (reason :uint8 128)
+			 (count :uint32))
+    (%websocket-query-close-status hwebsocket
+				   status
+				   reason
+				   128
+				   count)
+    (values (mem-aref status :uint16)
+	    (foreign-string-to-lisp reason :count (mem-aref count :uint32)))))
+
+;; WINHTTPAPI DWORD WinHttpWebSocketReceive(
+;;   HINTERNET                      hWebSocket,
+;;   PVOID                          pvBuffer,
+;;   DWORD                          dwBufferLength,
+;;   DWORD                          *pdwBytesRead,
+;;   WINHTTP_WEB_SOCKET_BUFFER_TYPE *peBufferType
+;; );
+(defcfun (%websocket-recv "WinHttpWebSocketReceive" :convention :stdcall) :uint32 
+  (hwebsocket :pointer)
+  (buffer :pointer)
+  (cbuffer :uint32)
+  (nbytes :pointer)
+  (buffertype :pointer))
+
+(defun websocket-receive (hwebsocket seq &key (start 0) end)
+  "Receive some data. 
+HWEBSOCKET ::= the websocket handke
+SEQ ::= buffer that receives the data
+START, END ::= buffer region to fill in
+returns values count buffer-type, where
+COUNT ::= number of bytes received
+BUFFER-TYPE ::= type of message received
+" 
+  (let ((count (- (or end (length seq)) start)))
+    (with-foreign-objects ((buf :uint8 count)
+			   (nbytes :uint32)
+			   (btype :uint32))
+      (let ((sts (%websocket-recv hwebsocket
+				  buf
+				  count
+				  nbytes
+				  btype)))
+	(unless (zerop sts)
+	  (error "Failed ~S" sts)))
+      (dotimes (i (mem-aref nbytes :uint32))
+	(setf (aref seq (+ start i)) (mem-aref buf :uint8 i)))
+      (values (mem-aref nbytes :uint32) (get-buffer-type (mem-aref btype :uint32))))))
+
+;; WINHTTPAPI DWORD WinHttpWebSocketSend(
+;;   HINTERNET                      hWebSocket,
+;;   WINHTTP_WEB_SOCKET_BUFFER_TYPE eBufferType,
+;;   PVOID                          pvBuffer,
+;;   DWORD                          dwBufferLength
+;; );
+(defcfun (%websocket-send "WinHttpWebSocketSend" :convention :stdcall) :uint32
+  (hwebsocket :pointer)
+  (btype :uint32)
+  (buf :pointer)
+  (cbuf :uint32))
+
+(defun websocket-send (hwebsocket seq &key (start 0) end buffer-type)
+  "Send some data on a websocket.
+HWEBSOCKET ::= websocket handle
+SEQ ::= buffer
+START,END ::= buffer region to send
+BUFFER-TYPE ::= type of message"
+  (let ((count (- (or end (length seq)) start)))
+    (with-foreign-objects ((buf :uint8 count))
+      (let ((sts (%websocket-send hwebsocket
+				  (if buffer-type
+				      (get-buffer-type buffer-type)
+				      0)
+				  buf
+				  count)))
+	(unless (zerop sts)
+	  (error "Failed ~S" sts)))))
+  nil)
+
+;; WINHTTPAPI DWORD WinHttpWebSocketShutdown(
+;;   HINTERNET hWebSocket,
+;;   USHORT    usStatus,
+;;   PVOID     pvReason,
+;;   DWORD     dwReasonLength
+;; );
+(defcfun (%websocket-shutdown "WinHttpWebSocketShutdown" :convention :stdcall) :uint32
+  (hwebsocket :pointer)
+  (status :uint16)
+  (reason :pointer)
+  (creason :uint32))
+
+(defun websocket-shutdown (hwebsocket &optional status)
+  "Shutdown a websocket"
+  (%websocket-shutdown hwebsocket
+		       (or status 0)
+		       (null-pointer)
+		       0))
+
+
+;; typedef enum _WINHTTP_WEB_SOCKET_BUFFER_TYPE {
+;;   WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE,
+;;   WINHTTP_WEB_SOCKET_BINARY_FRAGMENT_BUFFER_TYPE,
+;;   WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE,
+;;   WINHTTP_WEB_SOCKET_UTF8_FRAGMENT_BUFFER_TYPE,
+;;   WINHTTP_WEB_SOCKET_CLOSE_BUFFER_TYPE
+;; } WINHTTP_WEB_SOCKET_BUFFER_TYPE;
+(defconstant +websocket-binary-message+ 0)
+(defconstant +websocket-binary-fragment+ 1)
+(defconstant +websocket-utf8-message+ 2)
+(defconstant +websocket-utf8-fragment+ 3)
+(defconstant +websocket-close+ 4)
+(defun get-buffer-type (buffertype)
+  (ecase buffertype
+    (0 :binary)
+    (1 :binary-fragment)
+    (2 :utf8)
+    (3 :utf8-fragment)
+    (4 :close)
+    (:binary 0)
+    (:binary-fragment 1)
+    (:utf8 2)
+    (:utf8-fragment 3)
+    (:close 4)))
+
+
+(defconstant +WINHTTP-OPTION-UPGRADE-TO-WEB-SOCKET+ 114)
+
+(defun upgrade-to-websocket (hrequest)
+  "Call this before the initial SEND-REQUEST call." 
+  (%set-option hrequest 
+               +WINHTTP-OPTION-UPGRADE-TO-WEB-SOCKET+
+	       (null-pointer)
+	       0))
+
+(defmacro with-websocket ((var hostname port &key url https-p) &body body)
+  "Bind VAR to a websocket connected to hostname:port/url." 
+  (let ((ghttp (gensym))
+	(ghconnect (gensym))
+	(ghreq (gensym)))
+    `(with-http (,ghttp)
+       (with-connect (,ghconnect ,ghttp ,hostname ,port)
+	 (with-request (,ghreq ,ghconnect :url ,url :https-p ,https-p)
+	   (upgrade-to-websocket ,ghreq)
+	   (send-request ,ghreq nil :end 0)
+	   (receive-response ,ghreq)
+	   (let ((,var (websocket-complete-upgrade ,ghreq)))
+	     (unwind-protect (progn ,@body)
+	       (websocket-close ,var))))))))
+
