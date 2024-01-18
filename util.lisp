@@ -4,9 +4,9 @@
 
 (in-package #:winhttp)
 
-(defmacro with-http ((var &optional user-agent) &body body)
+(defmacro with-http ((var &optional user-agent proxy) &body body)
   "Evaluate body with VAR bound to a session handle."
-  `(let ((,var (http-open ,user-agent)))
+  `(let ((,var (http-open ,user-agent ,proxy)))
      (unwind-protect (progn ,@body)
        (close-handle ,var))))
 
@@ -184,7 +184,7 @@ babel may not be able to decode the text."
 (defun http-request (url &key (method :get) 
                            post-data (post-start 0) post-end 
                            rawp headers timeout ignore-certificates-p
-                           statuscb recv-buf (recv-start 0) recv-end)
+                           statuscb recv-buf (recv-start 0) recv-end proxy)
   "Send HTTP request to server. 
 URL ::= string in format [http|https://][username:password@]hostname[:port][/url]
 METHOD ::= HTTP verb e.g. :GET, :POST etc 
@@ -198,11 +198,12 @@ STATUSCB ::= if non-nil, is a symbol naming a callback defined using define-stat
 This will be invoked to inform various status messages. 
 RECV-BUF ::= if provided, is an octet vector that receives the reply body. 
 If not supplied a buffer is allocated. Uses region bounded by RECV-START and RECV-END.
+PROXY ::= NAME:PORT of proxy server to use ie 127.0.0.1:8080 or localhost:8080
 Returns values return-data status-code headers content-length.
 "
 
   (let ((comp (crack-url url)))
-    (with-http (hsession)
+    (with-http (hsession nil proxy)
       (when (eq (getf comp :scheme) :https)
         (set-secure-protocols hsession :tls1 t :tls1-1 t :tls1-2 t))
       
