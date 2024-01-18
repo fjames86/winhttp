@@ -236,7 +236,9 @@
 
 		
 		
-(defconstant +access-no-proxy+ 1)		
+(defconstant +access-no-proxy+ 1)
+(defconstant +access-named-proxy+ 3)
+
 ;; HINTERNET WINAPI WinHttpOpen(
 ;;   _In_opt_ LPCWSTR pwszUserAgent,
 ;;   _In_     DWORD   dwAccessType,
@@ -250,15 +252,16 @@
   (proxy :pointer)
   (bypass :pointer)
   (flags :uint32))
-(defun http-open (&optional user-agent)
+(defun http-open (&optional user-agent proxy)
   (with-wide-string (u (or user-agent "winhttp"))
-    (let ((h (%http-open u
-			 +access-no-proxy+
-			 (null-pointer)
-			 (null-pointer)
-			 0)))
-      (when (null-pointer-p h) (get-last-error))
-      h)))
+    (with-wide-string (p (or proxy ""))
+      (let ((h (%http-open u
+                           (if proxy +access-named-proxy+ +access-no-proxy+)
+			   (if proxy p (null-pointer))
+			   (null-pointer)
+			   0)))
+        (when (null-pointer-p h) (get-last-error))
+        h))))
 
 ;; BOOL WINAPI WinHttpCloseHandle(
 ;;   _In_ HINTERNET hInternet
